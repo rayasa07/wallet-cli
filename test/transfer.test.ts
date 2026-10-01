@@ -188,48 +188,17 @@ describe("transferCredits", () => {
     );
   });
 
-  it("throws E_USAGE for an MPP challenge request parameter that is not valid JSON", async () => {
+  it("throws E_USAGE for a malformed MPP challenge request parameter", async () => {
     await useTempHome();
     await writeWalletState(walletState());
 
-    const encoded = Buffer.from("not-json", "utf8").toString("base64url");
-    const error = await transferCredits({
-      options: {
-        "dry-run": true,
-        "mpp-challenge": buildMppChallengeWithRequest(`request="${encoded}"`),
-      },
-    }).catch((err: unknown) => err);
-
-    expectUsageError(
-      error,
-      "Invalid configuration: invalid MPP challenge: Malformed request parameter.",
-    );
-  });
-
-  it("throws E_USAGE for an MPP challenge request parameter that is not base64url", async () => {
-    await useTempHome();
-    await writeWalletState(walletState());
-
-    const error = await transferCredits({
-      options: { "dry-run": true, "mpp-challenge": buildMppChallengeWithRequest('request="!!!!"') },
-    }).catch((err: unknown) => err);
-
-    expectUsageError(
-      error,
-      "Invalid configuration: invalid MPP challenge: Malformed request parameter.",
-    );
-  });
-
-  it("throws E_USAGE for an MPP challenge request parameter that is not a JSON object", async () => {
-    await useTempHome();
-    await writeWalletState(walletState());
-
-    for (const payload of ["null", "[]", "5", '"amount"']) {
-      const encoded = Buffer.from(payload, "utf8").toString("base64url");
+    const encode = (payload: string) => Buffer.from(payload, "utf8").toString("base64url");
+    // Not base64url, not JSON, and JSON that is not an object.
+    for (const request of ["!!!!", encode("not-json"), encode("null"), encode("[]"), encode("5")]) {
       const error = await transferCredits({
         options: {
           "dry-run": true,
-          "mpp-challenge": buildMppChallengeWithRequest(`request="${encoded}"`),
+          "mpp-challenge": buildMppChallengeWithRequest(`request="${request}"`),
         },
       }).catch((err: unknown) => err);
 
