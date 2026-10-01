@@ -28,9 +28,8 @@ export async function withSessionLock<T>(url: string, fn: () => Promise<T>): Pro
   }
 }
 
-// The lock file is created by open(path, "wx") and only written afterwards, so
-// a freshly created one is legitimately empty for a moment. Give the writer
-// this long to record its pid before treating the lock as abandoned.
+// A new lock is briefly empty between open() and the pid write, so a lock
+// without a pid only counts as abandoned once it is older than this.
 const unreadablePidGraceMs = 5_000;
 
 async function removeStaleLock(path: string) {
@@ -48,11 +47,6 @@ async function removeStaleLock(path: string) {
   }
 }
 
-// A lock carrying no usable pid cannot be checked against a running process.
-// Once it is older than the grace period no writer is still recording one, so
-// the holder died between creating the file and writing to it, or the contents
-// were truncated. Release it rather than waiting out the deadline on every
-// later run.
 async function removeAbandonedLock(path: string) {
   const stats = await stat(path).catch(() => undefined);
   if (!stats) return false;

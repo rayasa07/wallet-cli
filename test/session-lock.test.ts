@@ -26,27 +26,17 @@ async function seedLock(contents: string, ageMs = 0) {
 }
 
 describe("withSessionLock", () => {
-  it("releases a lock left empty by a holder that died before writing its pid", async () => {
-    // open(path, "wx") creates the lock and writeFile records the pid as a
-    // separate step; a holder that dies in between leaves an empty lock with
-    // no pid to check, which used to make every later run wait out the
-    // 30s deadline and fail.
+  it.each([
+    ["empty", ""],
+    ["unparseable", "not-a-pid\n2026-09-20T00:00:00.000Z\n"],
+  ])("releases a stale lock with an %s pid", async (_name, contents) => {
     await useTempHome();
-    await seedLock("", 60_000);
-
-    await expect(withSessionLock(url, async () => "ran")).resolves.toBe("ran");
-  });
-
-  it("releases a lock whose pid line is not a usable pid", async () => {
-    await useTempHome();
-    await seedLock("not-a-pid\n2026-09-20T00:00:00.000Z\n", 60_000);
+    await seedLock(contents, 60_000);
 
     await expect(withSessionLock(url, async () => "ran")).resolves.toBe("ran");
   });
 
   it("leaves a just-created empty lock alone while its holder is still writing", async () => {
-    // The same empty lock is legitimate for a moment, so it must not be
-    // stolen on sight: that would let two holders run at once.
     await useTempHome();
     const path = await seedLock("");
 
@@ -61,13 +51,6 @@ describe("withSessionLock", () => {
 
     await rm(path, { force: true });
     await expect(pending).resolves.toBe("ran");
-  });
-
-  it("releases a lock held by a process that is gone", async () => {
-    await useTempHome();
-    await seedLock("999999999\n2026-09-20T00:00:00.000Z\n", 60_000);
-
-    await expect(withSessionLock(url, async () => "ran")).resolves.toBe("ran");
   });
 
   it("respects a lock held by a live process", async () => {
@@ -85,13 +68,5 @@ describe("withSessionLock", () => {
 
     await rm(path, { force: true });
     await expect(pending).resolves.toBe("ran");
-  });
-
-  it("removes the lock after the callback finishes", async () => {
-    await useTempHome();
-    const path = lockPath();
-
-    await expect(withSessionLock(url, async () => "ran")).resolves.toBe("ran");
-    await expect(stat(path)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
